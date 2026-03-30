@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multimodal Meme Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a14;
+      --card:      #13132a;
+      --card2:     #1a1a35;
+      --border:    #2a2a4a
+      --red:       #e94560;
+      --orange:    #f5a623;
+      --green:     #2ecc71;
+      --blue:      #3498db;
+      --purple:    #9b59b6;
+      --text:      #e8e8f0;
+      --muted:     #888;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #0d0d20, #1a1040, #0d1535);
+      border-bottom: 2px solid var(--red);
+      padding: 22px 24px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    header h1 {
+      font-size: clamp(1.5rem, 4vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: 3px;
+      background: linear-gradient(90deg, #e94560, #f5a623, #e94560);
+      background-size: 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer { to { background-position: 200% center; } }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; letter-spacing: 1px; }
+
+    /* ── LAYOUT ─────────────────────────────────────────── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 28px 20px; display: flex; flex-direction: column; gap: 24px; }
+
+    /* ── INPUT CARD ─────────────────────────────────────── */
+    .input-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 32px;
+    }
+    .input-label { font-size: 0.78rem; color: var(--red); text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 12px; }
+    .input-row { display: flex; gap: 12px; }
+    .input-row input {
+      flex: 1;
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1.05rem;
+      outline: none;
+      transition: border 0.2s, box-shadow 0.2s;
+    }
+    .input-row input:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(233,69,96,0.15);
+    }
+    .gen-btn {
+      padding: 16px 32px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #e94560, #c0392b);
+      color: white;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .gen-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.4); }
+    .gen-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .chips-label { font-size: 0.75rem; color: var(--muted); }
+    .chip {
+      background: var(--card2);
+      color: #aac;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chip:hover { background: #2a2a5a; color: white; border-color: var(--red); }
+
+    /* ── LOADER ─────────────────────────────────────────── */
+    .loader {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 48px 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+    }
+    .loader.active { display: flex; }
+
+    .spinner-ring {
+      width: 64px; height: 64px;
+      border: 5px solid var(--border);
+      border-top-color: var(--red);
+      border-right-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loader-msg { color: var(--text); font-size: 1rem; font-weight: 600; letter-spacing: 1px; }
+    .loader-sub { color: var(--muted); font-size: 0.82rem; }
+
+    .pipeline-steps { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+    .step {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 7px 16px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      transition: all 0.35s;
+    }
+    .step.active { background: var(--red); color: white; border-color: var(--red); transform: scale(1.06); box-shadow: 0 4px 14px rgba(233,69,96,0.4); }
+    .step.done { background: #1a4a2a; color: var(--green); border-color: var(--green); }
+    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    /* ── ERROR ──────────────────────────────────────────── */
+    .error-box {
+      display: none;
+      background: #1a0808;
+      border: 1px solid var(--red);
+      border-radius: 14px;
+      padding: 18px 24px;
+      color: #f88;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .error-box.active { display: block; }
+
+    /* ── RESULT ─────────────────────────────────────────── */
+    .result-card {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .result-card.active { display: block; animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #1a0d20, #0d1530);
+    }
+    .result-header h2 { font-size: 1rem; color: var(--green); letter-spacing: 1px; }
+    .result-header .tags { display: flex; gap: 8px; }
+    .tag {
+      background: #0f2a50;
+      color: #7ec8e3;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .tag.tone-funny    { background: #3a2800; color: #f5a623; }
+    .tag.tone-sarcastic{ background: #2a0040; color: #d980ff; }
+    .tag.tone-relatable{ background: #002a40; color: #7ec8e3; }
+    .tag.tone-absurd   { background: #3a0030; color: #ff80c0; }
+
+    /* ── MAIN RESULT BODY ───────────────────────────────── */
+    .result-body {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 0;
+    }
+    @media (max-width: 700px) { .result-body { grid-template-columns: 1fr; } }
+
+    /* LEFT — Meme Image */
+    .meme-col {
+      padding: 28px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      background: radial-gradient(ellipse at center, #1a1040 0%, #0a0a14 100%);
+    }
+
+    .meme-frame {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(233,69,96,0.25), 0 0 80px rgba(233,69,96,0.1);
+      border: 2px solid #3a3a6a;
+      transition: box-shadow 0.3s;
+    }
+    .meme-frame:hover {
+      box-shadow: 0 0 50px rgba(233,69,96,0.4), 0 0 100px rgba(233,69,96,0.15);
+    }
+    .meme-frame img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+
+    /* Loading shimmer for image */
+    .img-shimmer {
+      width: 100%;
+      aspect-ratio: 1;
+      background: linear-gradient(90deg, #1a1a35 25%, #2a2a4a 50%, #1a1a35 75%);
+      background-size: 200% 100%;
+      animation: shimmer-bg 1.5s infinite;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+    @keyframes shimmer-bg { to { background-position: -200% 0; } }
+
+    .meme-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-download { background: linear-gradient(135deg, #27ae60, #1e8449); color: white; }
+    .btn-download:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(39,174,96,0.4); }
+    .btn-copy { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+    .btn-copy:hover { background: #2a2a5a; border-color: var(--blue); }
+    .btn-regen { background: linear-gradient(135deg, #e94560, #9b2335); color: white; }
+    .btn-regen:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(233,69,96,0.4); }
+
+    /* Prompt used label */
+    .prompt-used {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      width: 100%;
+      max-width: 420px;
+    }
+    .prompt-used span { color: var(--orange); font-weight: 600; }
+
+    /* RIGHT — Details */
+    .details-col { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+
+    .section-title {
+      font-size: 0.72rem;
+      letter-spacing: 2px;
+      color: var(--red);
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Caption cards */
+    .caption-list { display: flex; flex-direction: column; gap: 8px; }
+    .caption-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .caption-card:hover { border-color: var(--orange); background: #14142a; }
+    .caption-card.active {
+      border-color: var(--red);
+      background: #1a0d14;
+      box-shadow: 0 0 12px rgba(233,69,96,0.2);
+    }
+    .caption-card.active::before {
+      content: '✓ SELECTED';
+      position: absolute;
+      top: 8px; right: 10px;
+      font-size: 0.6rem;
+      color: var(--red);
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .cap-top { font-size: 0.82rem; color: #aaa; margin-bottom: 2px; }
+    .cap-top strong { color: var(--orange); }
+    .cap-bot { font-size: 0.82rem; color: #ccc; }
+    .cap-bot strong { color: var(--blue); }
+    .cap-score {
+      margin-top: 6px;
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .score-bar {
+      flex: 1;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .score-fill { height: 100%; background: linear-gradient(90deg, var(--red), var(--orange)); border-radius: 2px; }
+
+    /* Image prompt */
+    .img-prompt-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.7;
+      font-style: italic;
+    }
+
+    /* ── HISTORY ────────────────────────────────────────── */
+    .history-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px 28px;
+    }
+    .history-section h3 { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
+    .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+    .history-item {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+      aspect-ratio: 1;
+      background: var(--card2);
+    }
+    .history-item:hover { border-color: var(--red); transform: scale(1.04); }
+    .history-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .no-history { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 16px 0; }
+
+    /* Copy feedback */
+    .copy-toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--green);
+      color: white;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      transition: transform 0.3s;
+      z-index: 999;
+    }
+    .copy-toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎭 MULTIMODAL MEME GENERATOR</h1>
+  <p>Diffusion Models + Text Transformers &nbsp;|&nbsp; Generative AI &nbsp;|&nbsp; Group 31</p>
+</header>
+
+<div class="page">
+
+  <!-- ── INPUT ── -->
+  <div class="input-card">
+    <div class="input-label">⚡ Enter your meme idea</div>
+    <div class="input-row">
+      <input id="promptInput" type="text" placeholder="e.g. Debugging code at 2am..." autocomplete="off"/>
+      <button class="gen-btn" id="generateBtn" onclick="generateMeme()">⚡ Generate</button>
+    </div>
+    <div class="chips">
+      <span class="chips-label">Try:</span>
+      <div class="chip" onclick="setPrompt('Debugging code at 2am')">🐛 Debugging at 2am</div>
+      <div class="chip" onclick="setPrompt('Monday morning meetings')">😩 Monday meetings</div>
+      <div class="chip" onclick="setPrompt('When the code finally works')">✅ Code finally works</div>
+      <div class="chip" onclick="setPrompt('WiFi disconnects during exam')">📶 WiFi disconnects</div>
+      <div class="chip" onclick="setPrompt('Exams tomorrow havent studied')">📚 Exam tomorrow</div>
+      <div class="chip" onclick="setPrompt('AI taking over everyone job')">🤖 AI taking jobs</div>
+    </div>
+  </div>
+
+  <!-- ── LOADER ── -->
+  <div class="loader" id="loader">
+    <div class="spinner-ring"></div>
+    <div class="loader-msg" id="loaderMsg">Initializing pipeline...</div>
+    <div class="loader-sub" id="loaderSub">This may take 20–40 seconds</div>
+    <div class="pipeline-steps">
+      <div class="step" id="s1"><div class="step-dot"></div>📝 Text Understanding</div>
+      <div class="step" id="s2"><div class="step-dot"></div>🎨 Image Generation</div>
+      <div class="step" id="s3"><div class="step-dot"></div>💬 Caption Generation</div>
+      <div class="step" id="s4"><div class="step-dot"></div>🖼 Meme Assembly</div>
+    </div>
+  </div>
+
+  <!-- ── ERROR ── -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- ── RESULT ── -->
+  <div class="result-card" id="resultCard">
+
+    <div class="result-header">
+      <h2>✅ MEME GENERATED!</h2>
+      <div class="tags">
+        <span class="tag" id="toneTag"></span>
+        <span class="tag" id="styleTag"></span>
+      </div>
+    </div>
+
+    <div class="result-body">
+
+      <!-- LEFT: Meme Image -->
+      <div class="meme-col">
+        <div class="meme-frame" id="memeFrame">
+          <div class="img-shimmer" id="imgShimmer">🎭</div>
+          <img id="memeImg" src="" alt="Generated Meme"
+               style="display:none"
+               onload="onImageLoaded()"
+               onerror="onImageError()"/>
+        </div>
+
+        <div class="prompt-used">Prompt: <span id="promptUsed"></span></div>
+
+        <div class="meme-actions">
+          <a class="btn btn-download" id="downloadLink" download="meme.png">⬇ Download</a>
+          <button class="btn btn-copy" onclick="copyImageUrl()">🔗 Copy Link</button>
+          <button class="btn btn-regen" onclick="regenerate()">🔄 Regenerate</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: Details -->
+      <div class="details-col">
+
+        <div>
+          <div class="section-title">🎨 Caption Options</div>
+          <div class="caption-list" id="captionList"></div>
+        </div>
+
+        <div>
+          <div class="section-title">🤖 AI Image Prompt</div>
+          <div class="img-prompt-box" id="imgPromptText"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HISTORY ── -->
+  <div class="history-section" id="historySection" style="display:none">
+    <h3>🕒 Recent Memes</h3>
+    <div class="history-grid" id="historyGrid"></div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="copy-toast" id="copyToast">✅ Link copied!</div>
+
+<script>
+  const API_BASE = "http://localhost:8000";
+  let currentPrompt  = "";
+  let currentImgUrl  = "";
+  let memeHistory    = [];
+
+  function setPrompt(text) {
+    document.getElementById("promptInput").value = text;
+    document.getElementById("promptInput").focus();
+  }
+
+  function regenerate() {
+    if (currentPrompt) {
+      document.getElementById("promptInput").value = currentPrompt;
+      generateMeme();
+    }
+  }
+
+  async function generateMeme() {
+    const prompt = document.getElementById("promptInput").value.trim();
+    if (!prompt) return;
+    currentPrompt = prompt;
+
+    // Reset UI
+    document.getElementById("errorBox").className   = "error-box";
+    document.getElementById("resultCard").className = "result-card";
+    document.getElementById("loader").className     = "loader active";
+    document.getElementById("generateBtn").disabled = true;
+    document.getElementById("memeImg").style.display = "none";
+    document.getElementById("imgShimmer").style.display = "flex";
+    ["s1","s2","s3","s4"].forEach(id => document.getElementById(id).className = "step");
+
+    // Step animation
+    const steps = ["s1","s2","s3","s4"];
+    const msgs  = [
+      ["📝 Understanding your prompt...", "Transformer model analyzing intent & tone"],
+      ["🎨 Diffusion model generating image...", "Stable Diffusion creating your scene (takes ~20s)"],
+      ["💬 Writing witty captions...", "LLM crafting 3 different caption styles"],
+      ["🖼 Assembling final meme...", "Adding effects, borders, emojis & text"],
+    ];
+    let idx = 0;
+    const stepTimer = setInterval(() => {
+      if (idx > 0) document.getElementById(steps[idx-1]).className = "step done";
+      if (idx < steps.length) {
+        document.getElementById(steps[idx]).className = "step active";
+        document.getElementById("loaderMsg").textContent  = msgs[idx][0];
+        document.getElementById("loaderSub").textContent  = msgs[idx][1];
+        idx++;
+      }
+    }, 2200);
+
+    try {
+      const res  = await fetch(`${API_BASE}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+
+      clearInterval(stepTimer);
+      steps.forEach(id => document.getElementById(id).className = "step done");
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Server error");
+      }
+
+      const data = await res.json();
+      renderResult(data);
+
+    } catch (e) {
+      clearInterval(stepTimer);
+      document.getElementById("errorBox").className = "error-box active";
+      document.getElementById("errorBox").textContent = "❌ Error: " + e.message;
+    } finally {
+      document.getElementById("loader").className     = "loader";
+      document.getElementById("generateBtn").disabled = false;
+    }
+  }
+
+  function renderResult(data) {
+    const imgUrl = API_BASE + data.final_meme_url + "?t=" + Date.now();
+    currentImgUrl = imgUrl;
+
+    // Show result card
+    document.getElementById("resultCard").className = "result-card active";
+
+    // Scroll to result
+    setTimeout(() => document.getElementById("resultCard").scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+
+    // Tone badge
+    const tone = (data.detected_tone || "funny").toLowerCase();
+    const toneEl = document.getElementById("toneTag");
+    toneEl.textContent = { funny:"😂 Funny", sarcastic:"🙄 Sarcastic", relatable:"💯 Relatable", absurd:"🤯 Absurd" }[tone] || tone;
+    toneEl.className = `tag tone-${tone}`;
+    document.getElementById("styleTag").textContent = "🖼 " + (data.meme_style || "classic");
+
+    // Prompt used
+    document.getElementById("promptUsed").textContent = data.user_prompt;
+
+    // Load image — show shimmer until loaded
+    const img = document.getElementById("memeImg");
+    img.style.display = "none";
+    document.getElementById("imgShimmer").style.display = "flex";
+    img.src = imgUrl;
+
+    // Download link
+    document.getElementById("downloadLink").href = imgUrl;
+
+    // Image prompt
+    document.getElementById("imgPromptText").textContent = data.image_generation_prompt;
+
+    // Caption cards
+    const list = document.getElementById("captionList");
+    list.innerHTML = "";
+    const styles = ["🎯 Classic", "🔥 Slang", "🤪 Absurd"];
+    (data.captions || []).forEach((c, i) => {
+      const div = document.createElement("div");
+      div.className = "caption-card" + (i === 0 ? " active" : "");
+      div.innerHTML = `
+        <div class="cap-top"><strong>TOP</strong> &nbsp;${c.top_text}</div>
+        <div class="cap-bot"><strong>BOT</strong> &nbsp;${c.bottom_text}</div>
+        <div class="cap-score">
+          <span>${styles[i] || "Option " + (i+1)}</span>
+          <div class="score-bar"><div class="score-fill" style="width:${(c.score*100).toFixed(0)}%"></div></div>
+          <span>${(c.score*100).toFixed(0)}%</span>
+        </div>`;
+      list.appendChild(div);
+    });
+
+    // Add meme to history
+    addToHistory(imgUrl, data.user_prompt);
+  }
+
+  function onImageLoaded() {
+    document.getElementById("imgShimmer").style.display = "none";
+    document.getElementById("memeImg").style.display    = "block";
+  }
+
+  function onImageError() {
+    document.getElementById("imgShimmer").innerHTML = "❌ Image failed to load";
+  }
+
+  function copyImageUrl() {
+    navigator.clipboard.writeText(currentImgUrl).then(() => {
+      const t = document.getElementById("copyToast");
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2500);
+    });
+  }
+
+  function addToHistory(url, prompt) {
+    memeHistory.unshift({ url, prompt });
+    if (memeHistory.length > 10) memeHistory.pop();
+
+    const sec  = document.getElementById("historySection");
+    const grid = document.getElementById("historyGrid");
+    sec.style.display = "block";
+    grid.innerHTML = "";
+
+    memeHistory.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "history-item";
+      div.title     = item.prompt;
+      div.innerHTML = `<img src="${item.url}" alt="${item.prompt}" loading="lazy"/>`;
+      div.onclick   = () => { document.getElementById("memeImg").src = item.url; document.getElementById("downloadLink").href = item.url; };
+      grid.appendChild(div);
+    });
+  }
+
+  document.getElementById("promptInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") generateMeme();
+  });
+</script>
+</body>
+</html>
